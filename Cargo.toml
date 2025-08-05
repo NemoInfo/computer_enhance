@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = [
+    "instruction_proc_macro",
+    "types_8086"
+    "dasm"
+]

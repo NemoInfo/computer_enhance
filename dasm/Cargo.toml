@@ -1,0 +1,10 @@
+[package]
+name = "dasm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+modular-bitfield = "0.12.0"
+once_cell = "1.21.3"
+rstest = "0.26.1"
+instruction_proc_macro = { path = "../instruction_proc_macro" }
