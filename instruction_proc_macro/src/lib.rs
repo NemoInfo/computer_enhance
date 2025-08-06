@@ -10,7 +10,7 @@ use quote::{format_ident, quote};
 use syn::{
   parenthesized,
   parse::{Parse, ParseStream, Parser},
-  Expr, ExprLit, Ident, Lit, Result, Token,
+  parse_macro_input, DeriveInput, Expr, ExprLit, Ident, Lit, Result, Token,
 };
 
 #[derive(Debug, Clone, Copy, std::cmp::Eq, std::cmp::PartialEq, Hash)]
@@ -20,6 +20,7 @@ enum BitArg {
   R_M,
   D,
   S,
+  SR,
   W,
   IP8,
   DISP_LO,
@@ -46,16 +47,6 @@ enum BitVal {
 }
 
 impl BitVal {
-  fn val_to_ident(&self) -> Ident {
-    match self {
-      BitVal::Lit { .. } => panic!("Literal bitstring has no reason to become identifier"),
-      BitVal::Arg(arg) => arg.to_ident(),
-      BitVal::Imp { arg, .. } => arg.to_ident(),
-    }
-  }
-}
-
-impl BitVal {
   const fn len(&self) -> u8 {
     match self {
       BitVal::Lit { len, .. } => *len,
@@ -65,6 +56,7 @@ impl BitVal {
         BitArg::MOD => 2,
         BitArg::R_M => 3,
         BitArg::S => 1,
+        BitArg::SR => 2,
         BitArg::D => 1,
         BitArg::W => 1,
         BitArg::IP8 => 8,
@@ -128,6 +120,7 @@ impl Parse for BitVal {
 
           Ok(BitVal::Imp { arg, value })
         }
+        "SR" => Ok(BitVal::Arg(BitArg::SR)),
         "REG" => Ok(BitVal::Arg(BitArg::REG)),
         "R_M" => Ok(BitVal::Arg(BitArg::R_M)),
         "MOD" => Ok(BitVal::Arg(BitArg::MOD)),
@@ -153,7 +146,7 @@ impl Parse for BitVal {
 #[derive(Clone)]
 struct InstructionEntry {
   name: Ident,
-  fn_pointer: Expr,
+  exec: Expr,
   pattern: Vec<BitVal>, // Vec<Chunks>
 }
 
@@ -226,12 +219,11 @@ impl Parse for InstructionEntry {
     let idents =
       syn::punctuated::Punctuated::<BitVal, Token![,]>::parse_terminated(&list_content)?.into_iter().collect();
 
-    Ok(InstructionEntry { name, fn_pointer, pattern: idents })
+    Ok(InstructionEntry { name, exec: fn_pointer, pattern: idents })
   }
 }
 
-#[proc_macro]
-pub fn generate_instruction_enum(tokens: TokenStream) -> TokenStream {
+fn generate_instruction_enum(tokens: TokenStream) -> TokenStream {
   let mut var_names = vec![];
   let mut str_names = vec![];
   let mut seen = HashSet::new();
@@ -245,12 +237,12 @@ pub fn generate_instruction_enum(tokens: TokenStream) -> TokenStream {
   }
   quote! {
     #[derive(Debug, Clone, Copy)]
-    enum InstructionKind {
+    pub enum InstructionKind {
       #(#var_names)*
     }
 
     impl InstructionKind {
-      fn str(&self) -> String {
+      pub fn str(&self) -> String {
         let str_names = vec![#(#str_names)*];
         str_names[*self as usize].to_lowercase().to_owned()
       }
@@ -259,8 +251,7 @@ pub fn generate_instruction_enum(tokens: TokenStream) -> TokenStream {
   .into()
 }
 
-#[proc_macro]
-pub fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
+fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
   let mut entries = vec![];
   let mut content = vec![];
   for instruction in
@@ -273,6 +264,7 @@ pub fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
 
   for (entry, ids) in entries {
     let name = entry.name;
+    let exec = entry.exec;
     let pattern = entry.pattern;
     let pattern_bytes = byte_split_bitval(&pattern);
 
@@ -280,6 +272,7 @@ pub fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
     let mut hs: HashSet<BitArg> = HashSet::new();
     inner_content.push(quote! {
       let mut bytes_read = 0u16;
+      let mut flags = 0u16;
     });
 
     for pattern in pattern_bytes.iter() {
@@ -352,18 +345,25 @@ pub fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
       let mut operands = [Operand::None, Operand::None];
       let (first, last) = operands.split_at_mut(1);
       let (reg_operand, mod_operand) = if d_ == 0 {
-        (&mut first[0], &mut last[0])
-      } else {
         (&mut last[0], &mut first[0])
+      } else {
+        (&mut first[0], &mut last[0])
       };
     });
 
+    if hs.contains(&BitArg::W) {
+      inner_content.push(quote! {
+        flags |= InstructionFlag::Wide as u16;
+      })
+    }
+
     for bitarg in &hs {
       match bitarg {
+        BitArg::SR => inner_content.push(quote! {
+          *reg_operand = Operand::Register(SR_TO_REGISTER[sr_ as usize]);
+        }),
         BitArg::REG => inner_content.push(quote! {
-          {
-            *reg_operand = Operand::Register(REG_TO_REGISTER[reg_ as usize][w_ as usize]);
-          }
+          *reg_operand = Operand::Register(REG_TO_REGISTER[reg_ as usize][w_ as usize]);
         }),
         BitArg::MOD => inner_content.push(quote! {
           match mod_  {
@@ -461,15 +461,15 @@ pub fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
       inner[#i0] = Some(|sa| {
           #(#inner_content)*
           let address = sa.get_absoulute_address_of(0);
-          let flags = 0;
           let size = 0;
           let kind = InstructionKind::#name;
           Instruction {
             address,
             flags,
             kind,
-            size: bytes_read,
             operands,
+            size: bytes_read,
+            exec: #exec,
           }
         });
 
@@ -483,7 +483,8 @@ pub fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
   }
 
   quote! {
-    const DECODE_TABLE1: [Option<fn(&SegmentedAccess) -> Instruction>; 1 << 16] = {
+    pub type DecodeTable = [Option<fn(&SegmentedAccess) -> Instruction>; 1 << 16];
+    pub const DECODE_TABLE: DecodeTable = {
       let mut inner: [Option<fn(&SegmentedAccess) -> Instruction>; 1 << 16] = [None; 1 << 16];
 
       #(#content)*
@@ -492,6 +493,35 @@ pub fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
     };
   }
   .into()
+}
+
+#[proc_macro]
+pub fn instructions(tokens: TokenStream) -> TokenStream {
+  let mut content: TokenStream = quote! { use crate::types::*; }.into();
+  content.extend(generate_instruction_enum(tokens.clone()));
+  content.extend(generate_instruction_decode_table(tokens.clone()));
+  content.into()
+}
+
+#[proc_macro_derive(AsRef)]
+pub fn derive_as_ref(input: TokenStream) -> TokenStream {
+  let input = parse_macro_input!(input as DeriveInput);
+
+  let name = input.ident;
+  let generics = input.generics;
+
+  // Split generics into parts for impl
+  let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+  let expanded = quote! {
+      impl #impl_generics AsRef<#name #ty_generics> for #name #ty_generics #where_clause {
+          fn as_ref(&self) -> &Self {
+              self
+          }
+      }
+  };
+
+  expanded.into()
 }
 
 #[cfg(test)]
