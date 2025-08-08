@@ -2,8 +2,8 @@ use crate::clocks::{Processor, TimingState};
 use crate::exec::ResultExecuteResult;
 use crate::table::{InstructionKind, DECODE_TABLE};
 use instruction_proc_macro::AsRef;
+use strum::{EnumIter, IntoEnumIterator};
 
-use num_enum::TryFromPrimitive;
 use std::io::Read;
 use std::ops::{Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo};
 use std::path::Path;
@@ -572,7 +572,7 @@ impl Registers {
 }
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, TryFromPrimitive, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RegisterName {
   A,
   B,
@@ -591,7 +591,7 @@ pub enum RegisterName {
 }
 
 #[repr(u16)]
-#[derive(Debug, Clone, Copy, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, EnumIter)]
 pub enum Flag {
   CF = 1 << 0,
   PF = 1 << 2,
@@ -606,11 +606,8 @@ pub enum Flag {
 
 fn flags_to_string(flag: u16) -> String {
   let mut flags = vec!["[".into()];
-  for i in 0..16 {
-    let Ok(f) = Flag::try_from(1 << i) else {
-      continue;
-    };
-    if (1 << i) & flag != 0 {
+  for f in Flag::iter() {
+    if f as u16 & flag != 0 {
       let mut flag_s = format!("{f:?}");
       flag_s.pop();
       flags.push(flag_s);
