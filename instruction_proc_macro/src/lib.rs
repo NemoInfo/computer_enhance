@@ -329,6 +329,12 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
       }
     }
 
+    if !hs.contains(&BitArg::D) {
+      inner_content.push(quote! {
+        let d_ = 0;
+      });
+    }
+
     inner_content.push(quote! {
       let mut operands = [Operand::None, Operand::None];
       let mut segment_register = None::<Register>;
