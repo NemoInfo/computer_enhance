@@ -1,3 +1,5 @@
 /target
+
+# Ignore binary files
 /assets/part1/*
 !/assets/part1/*.*
