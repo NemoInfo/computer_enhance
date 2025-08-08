@@ -3,17 +3,17 @@
 
 extern crate proc_macro;
 
-use std::collections::HashSet;
-
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
+use std::{collections::HashSet, str::FromStr};
+use strum::EnumString;
 use syn::{
   parenthesized,
   parse::{Parse, ParseStream, Parser},
   parse_macro_input, DeriveInput, Expr, ExprLit, Ident, Lit, Result, Token,
 };
 
-#[derive(Debug, Clone, Copy, std::cmp::Eq, std::cmp::PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, std::cmp::Eq, std::cmp::PartialEq, Hash, EnumString)]
 enum BitArg {
   REG,
   MOD,
@@ -120,22 +120,10 @@ impl Parse for BitVal {
 
           Ok(BitVal::Imp { arg, value })
         }
-        "SR" => Ok(BitVal::Arg(BitArg::SR)),
-        "REG" => Ok(BitVal::Arg(BitArg::REG)),
-        "R_M" => Ok(BitVal::Arg(BitArg::R_M)),
-        "MOD" => Ok(BitVal::Arg(BitArg::MOD)),
-        "D" => Ok(BitVal::Arg(BitArg::D)),
-        "S" => Ok(BitVal::Arg(BitArg::S)),
-        "W" => Ok(BitVal::Arg(BitArg::W)),
-        "IP8" => Ok(BitVal::Arg(BitArg::IP8)),
-        "DISP_LO" => Ok(BitVal::Arg(BitArg::DISP_LO)),
-        "DISP_HI" => Ok(BitVal::Arg(BitArg::DISP_HI)),
-        "DATA_LO" => Ok(BitVal::Arg(BitArg::DATA_LO)),
-        "DATA_HI" => Ok(BitVal::Arg(BitArg::DATA_HI)),
-        "DATA_HI_IF_SW" => Ok(BitVal::Arg(BitArg::DATA_HI_IF_SW)),
-        "ADDR_LO" => Ok(BitVal::Arg(BitArg::ADDR_LO)),
-        "ADDR_HI" => Ok(BitVal::Arg(BitArg::ADDR_HI)),
-        other => Err(syn::Error::new_spanned(ident, format!("Unknown code: {}", other))),
+        other => match BitArg::from_str(other) {
+          Ok(bitarg) => Ok(BitVal::Arg(bitarg)),
+          Err(_) => Err(syn::Error::new_spanned(ident, format!("No BitArg named {other}"))),
+        },
       }
     } else {
       Err(lookahead.error())
@@ -242,7 +230,7 @@ fn generate_instruction_enum(tokens: TokenStream) -> TokenStream {
     }
 
     impl InstructionKind {
-      pub fn str(&self) -> String {
+      pub fn to_string(&self) -> String {
         let str_names = vec![#(#str_names)*];
         str_names[*self as usize].to_lowercase().to_owned()
       }
@@ -343,6 +331,7 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
 
     inner_content.push(quote! {
       let mut operands = [Operand::None, Operand::None];
+      let mut segment_register = None::<Register>;
       let (first, last) = operands.split_at_mut(1);
       let (reg_operand, mod_operand) = if d_ == 0 {
         (&mut last[0], &mut first[0])
@@ -373,6 +362,7 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
             0b00 if r_m_ == 0b110 => {
               let displacement = u16::from_le_bytes([disp_lo.unwrap(), disp_hi.unwrap()]);
               *mod_operand = Operand::Memory(EffectiveAddressExpression::Direct(displacement));
+              segment_register = Some(reg::DS);
             },
             x if x < 0b100 => {
               let displacement = if let Some(disp_hi) = disp_hi {
@@ -385,6 +375,7 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
                 terms,
                 displacement,
               });
+              segment_register = Some(R_M_TO_DEFAULT_SEGMENT_REGISTER[r_m_ as usize]);
             }
             _ => panic!("Invalid mod implied value {mod_}"),
           }
@@ -402,6 +393,7 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
           mod_operand
         } else { panic!("Immediate value but no free operands") };
         *free_operand = Operand::Memory(EffectiveAddressExpression::Direct(addr));
+        segment_register = Some(reg::DS);
       });
     }
 
@@ -470,6 +462,7 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
             operands,
             size: bytes_read,
             exec: #exec,
+            segment_register
           }
         });
 

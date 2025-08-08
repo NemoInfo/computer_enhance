@@ -1,98 +1,98 @@
 ; listing_0041_add_sub_cmp_jnz disassembly
 bits 16
-add bx, [bx + si + 0]
-add bx, [bp + 0]
-add si, word 2
-add bp, word 2
-add cx, word 8
-add bx, [bp + 0]
-add cx, [bx + 2]
-add bh, [bp + si + 4]
-add di, [bp + di + 6]
-add [bx + si + 0], bx
-add [bp + 0], bx
-add [bp + 0], bx
-add [bx + 2], cx
-add [bp + si + 4], bh
-add [bp + di + 6], di
-add [bx + 0], byte 34
-add [bp + si + 1000], word 29
-add ax, [bp + 0]
-add al, [bx + si + 0]
-add ax, bx
-add al, ah
-add ax, word 1000
-add al, byte -30
-add al, byte 9
-sub bx, [bx + si + 0]
-sub bx, [bp + 0]
-sub si, word 2
-sub bp, word 2
-sub cx, word 8
-sub bx, [bp + 0]
-sub cx, [bx + 2]
-sub bh, [bp + si + 4]
-sub di, [bp + di + 6]
-sub [bx + si + 0], bx
-sub [bp + 0], bx
-sub [bp + 0], bx
-sub [bx + 2], cx
-sub [bp + si + 4], bh
-sub [bp + di + 6], di
-sub [bx + 0], byte 34
-sub [bx + di + 0], word 29
-sub ax, [bp + 0]
-sub al, [bx + si + 0]
-sub ax, bx
-sub al, ah
-sub ax, word 1000
-sub al, byte -30
-sub al, byte 9
-cmp bx, [bx + si + 0]
-cmp bx, [bp + 0]
-cmp si, word 2
-cmp bp, word 2
-cmp cx, word 8
-cmp bx, [bp + 0]
-cmp cx, [bx + 2]
-cmp bh, [bp + si + 4]
-cmp di, [bp + di + 6]
-cmp [bx + si + 0], bx
-cmp [bp + 0], bx
-cmp [bp + 0], bx
-cmp [bx + 2], cx
-cmp [bp + si + 4], bh
-cmp [bp + di + 6], di
-cmp [bx + 0], byte 34
-cmp [4834], word 29
-cmp ax, [bp + 0]
-cmp al, [bx + si + 0]
-cmp ax, bx
-cmp al, ah
-cmp ax, word 1000
-cmp al, byte -30
-cmp al, byte 9
-jnz $+4
-jnz $-2
-jnz $-4
-jnz $-2
-jz $+0
-jl $-2
-jng $-4
-jb $-6
-jna $-8
-jp $-10
-jo $-12
-js $-14
-jnz $-16
-jnl $-18
-jg $-20
-jnb $-22
-ja $-24
-jnp $-26
-jno $-28
-jns $-30
-loop $-32
-loopz $-34
-loopnz $-36
-jcxz $-38
+add bx, [bx + si + 0]          ; [f0000]
+add bx, [bp + 0]               ; [f0002]
+add si, word 2                 ; [f0005]
+add bp, word 2                 ; [f0008]
+add cx, word 8                 ; [f000b]
+add bx, [bp + 0]               ; [f000e]
+add cx, [bx + 2]               ; [f0011]
+add bh, [bp + si + 4]          ; [f0014]
+add di, [bp + di + 6]          ; [f0017]
+add [bx + si + 0], bx          ; [f001a]
+add [bp + 0], bx               ; [f001c]
+add [bp + 0], bx               ; [f001f]
+add [bx + 2], cx               ; [f0022]
+add [bp + si + 4], bh          ; [f0025]
+add [bp + di + 6], di          ; [f0028]
+add [bx + 0], byte 34          ; [f002b]
+add [bp + si + 1000], word 29  ; [f002e]
+add ax, [bp + 0]               ; [f0033]
+add al, [bx + si + 0]          ; [f0036]
+add ax, bx                     ; [f0038]
+add al, ah                     ; [f003a]
+add ax, word 1000              ; [f003c]
+add al, byte -30               ; [f003f]
+add al, byte 9                 ; [f0041]
+sub bx, [bx + si + 0]          ; [f0043]
+sub bx, [bp + 0]               ; [f0045]
+sub si, word 2                 ; [f0048]
+sub bp, word 2                 ; [f004b]
+sub cx, word 8                 ; [f004e]
+sub bx, [bp + 0]               ; [f0051]
+sub cx, [bx + 2]               ; [f0054]
+sub bh, [bp + si + 4]          ; [f0057]
+sub di, [bp + di + 6]          ; [f005a]
+sub [bx + si + 0], bx          ; [f005d]
+sub [bp + 0], bx               ; [f005f]
+sub [bp + 0], bx               ; [f0062]
+sub [bx + 2], cx               ; [f0065]
+sub [bp + si + 4], bh          ; [f0068]
+sub [bp + di + 6], di          ; [f006b]
+sub [bx + 0], byte 34          ; [f006e]
+sub [bx + di + 0], word 29     ; [f0071]
+sub ax, [bp + 0]               ; [f0074]
+sub al, [bx + si + 0]          ; [f0077]
+sub ax, bx                     ; [f0079]
+sub al, ah                     ; [f007b]
+sub ax, word 1000              ; [f007d]
+sub al, byte -30               ; [f0080]
+sub al, byte 9                 ; [f0082]
+cmp bx, [bx + si + 0]          ; [f0084]
+cmp bx, [bp + 0]               ; [f0086]
+cmp si, word 2                 ; [f0089]
+cmp bp, word 2                 ; [f008c]
+cmp cx, word 8                 ; [f008f]
+cmp bx, [bp + 0]               ; [f0092]
+cmp cx, [bx + 2]               ; [f0095]
+cmp bh, [bp + si + 4]          ; [f0098]
+cmp di, [bp + di + 6]          ; [f009b]
+cmp [bx + si + 0], bx          ; [f009e]
+cmp [bp + 0], bx               ; [f00a0]
+cmp [bp + 0], bx               ; [f00a3]
+cmp [bx + 2], cx               ; [f00a6]
+cmp [bp + si + 4], bh          ; [f00a9]
+cmp [bp + di + 6], di          ; [f00ac]
+cmp [bx + 0], byte 34          ; [f00af]
+cmp [4834], word 29            ; [f00b2]
+cmp ax, [bp + 0]               ; [f00b7]
+cmp al, [bx + si + 0]          ; [f00ba]
+cmp ax, bx                     ; [f00bc]
+cmp al, ah                     ; [f00be]
+cmp ax, word 1000              ; [f00c0]
+cmp al, byte -30               ; [f00c3]
+cmp al, byte 9                 ; [f00c5]
+jnz $+4                        ; [f00c7]
+jnz $-2                        ; [f00c9]
+jnz $-4                        ; [f00cb]
+jnz $-2                        ; [f00cd]
+jz $+0                         ; [f00cf]
+jl $-2                         ; [f00d1]
+jng $-4                        ; [f00d3]
+jb $-6                         ; [f00d5]
+jna $-8                        ; [f00d7]
+jp $-10                        ; [f00d9]
+jo $-12                        ; [f00db]
+js $-14                        ; [f00dd]
+jnz $-16                       ; [f00df]
+jnl $-18                       ; [f00e1]
+jg $-20                        ; [f00e3]
+jnb $-22                       ; [f00e5]
+ja $-24                        ; [f00e7]
+jnp $-26                       ; [f00e9]
+jno $-28                       ; [f00eb]
+jns $-30                       ; [f00ed]
+loop $-32                      ; [f00ef]
+loopz $-34                     ; [f00f1]
+loopnz $-36                    ; [f00f3]
+jcxz $-38                      ; [f00f5]

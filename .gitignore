@@ -1,1 +1,3 @@
 /target
+/assets/part1/*
+!/assets/part1/*.*

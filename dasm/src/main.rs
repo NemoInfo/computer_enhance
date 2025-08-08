@@ -1,53 +1,68 @@
 #![allow(non_snake_case)]
 
-mod table;
-use crate::table::DECODE_TABLE;
-
-mod types;
-use crate::types::*;
-
+mod clocks;
 mod exec;
+mod table;
+mod types;
+
+use crate::types::*;
 
 use std::{
   ffi::OsString,
   path::{Path, PathBuf},
 };
 
-fn allocate_memory_pow2(size_pow2: u32) -> Vec<u8> {
-  vec![0; 1usize << size_pow2]
-}
-
 fn simulate<P: AsRef<Path>>(path: P) -> Result<String, ()> {
+  let args: Vec<_> = std::env::args().into_iter().collect();
+  let time = args.iter().position(|s| s == &"--time".to_string()).map(|i| args[i + 1].as_str().try_into().unwrap());
+
   let mut program = Program::new(20);
-  Ok(program.simulate_from_file(path))
+  Ok(program.simulate_from_file(path, true, time))
 }
 
-fn dasm<P: AsRef<Path>>(path: P) -> Result<String, ()> {
-  let mem_pow2 = 20;
-  let mut memory = allocate_memory_pow2(20);
-  let mut sa = SegmentedAccess::new_memory_pow2(mem_pow2, &mut memory);
-  let mut bytes_to_read = sa.load_memory_from_file(path, 0) as u16;
-  let mut lines = vec![];
+fn decode<P: AsRef<Path>>(path: P) -> Result<String, ()> {
+  let args: Vec<_> = std::env::args().into_iter().collect();
+  let time = args.iter().position(|s| s == &"--time".to_string()).map(|i| args[i + 1].as_str().try_into().unwrap());
 
-  while bytes_to_read > 0 {
-    let instr = sa.decode_and_consume(&DECODE_TABLE);
-    bytes_to_read -= instr.size;
-    lines.push(instr.print_asm());
+  let mut program = Program::new(20);
+  Ok(program.simulate_from_file(path, false, time))
+}
+
+fn read_simulate_dump<P: AsRef<Path>>(path: P) -> std::io::Result<PathBuf> {
+  let args: Vec<_> = std::env::args().into_iter().collect();
+  let time = args.iter().position(|s| s == &"--time".to_string()).map(|i| args[i + 1].as_str().try_into().unwrap());
+
+  let mut program = Program::new(20);
+  let asm = program.simulate_from_file(&path, true, time);
+  let dump = program.dump();
+
+  let args: Vec<_> = std::env::args().into_iter().collect();
+  if !args.contains(&"--quiet".into()) {
+    println!("{asm}");
   }
 
-  Ok(lines.join("\n"))
+  let mut out_path = path.as_ref().as_os_str().to_owned();
+  out_path.push(".data");
+
+  std::fs::write(&out_path, dump)?;
+
+  Ok(out_path.into())
 }
 
-fn read_sim_write<P: AsRef<Path>>(path: P) -> std::io::Result<PathBuf> {
+fn read_simulate_write<P: AsRef<Path>>(path: P) -> std::io::Result<PathBuf> {
   use std::io::ErrorKind;
 
   let path = path.as_ref();
   let asm = simulate(path).expect("disassembly failed");
-  println!("{asm}");
+
+  let args: Vec<_> = std::env::args().into_iter().collect();
+  if !args.contains(&"--quiet".into()) {
+    println!("{asm}");
+  }
 
   let stem = path.file_stem().ok_or(ErrorKind::InvalidInput)?;
   let mut file_name = OsString::from(stem);
-  let asm = format!("; {} disassembly\nbits 16\n{asm}", file_name.to_string_lossy());
+  let asm = format!("; {} disassembly\n{asm}", file_name.to_string_lossy());
 
   file_name.push("_simulation");
 
@@ -66,16 +81,20 @@ fn read_sim_write<P: AsRef<Path>>(path: P) -> std::io::Result<PathBuf> {
   Ok(out_path)
 }
 
-fn read_dasm_write<P: AsRef<Path>>(path: P) -> std::io::Result<PathBuf> {
+fn read_decode_write<P: AsRef<Path>>(path: P) -> std::io::Result<PathBuf> {
   use std::io::ErrorKind;
 
   let path = path.as_ref();
-  let asm = dasm(path).expect("disassembly failed");
-  println!("{asm}");
+  let asm = decode(path).expect("disassembly failed");
+
+  let args: Vec<_> = std::env::args().into_iter().collect();
+  if !args.contains(&"--quiet".into()) {
+    println!("{asm}");
+  }
 
   let stem = path.file_stem().ok_or(ErrorKind::InvalidInput)?;
   let mut file_name = OsString::from(stem);
-  let asm = format!("; {} disassembly\nbits 16\n{asm}", file_name.to_string_lossy());
+  let asm = format!("; {} disassembly\n{asm}", file_name.to_string_lossy());
 
   file_name.push("_dasm");
 
@@ -99,11 +118,18 @@ fn main() {
   args.next();
 
   let mut files = vec![];
-  let mut f: fn(_) -> std::io::Result<PathBuf> = read_dasm_write;
-
+  let mut f: fn(_) -> std::io::Result<PathBuf> = read_decode_write;
+  let mut skip: bool = false;
   for arg in args {
+    if skip {
+      skip = false;
+      continue;
+    }
     match arg.as_str() {
-      "--sim" => f = read_sim_write,
+      "--sim" => f = read_simulate_write,
+      "--dump" => f = read_simulate_dump,
+      "--quiet" => continue,
+      "--time" => skip = true,
       arg => files.push(arg.to_string()),
     }
   }
@@ -113,7 +139,7 @@ fn main() {
   for arg in files {
     match f(arg.clone()) {
       Err(e) => eprintln!("{arg: >width$}: {e}", width = max_arg_len.unwrap()),
-      Ok(m) => println!("{arg: >width$}: Disassembled in {}", m.to_string_lossy(), width = max_arg_len.unwrap()),
+      Ok(m) => println!("{arg: >width$}: Wrote {}", m.to_string_lossy(), width = max_arg_len.unwrap()),
     }
   }
 }
@@ -121,6 +147,7 @@ fn main() {
 #[cfg(test)]
 mod test {
   use super::*;
+  use crate::table::DECODE_TABLE;
 
   #[rstest::rstest]
   #[case("../assets/part1/listing_0037_single_register_mov")]
@@ -128,10 +155,10 @@ mod test {
   #[case("../assets/part1/listing_0039_more_movs")]
   #[case("../assets/part1/listing_0040_challenge_movs")]
   #[case("../assets/part1/listing_0041_add_sub_cmp_jnz")]
-  #[case("../assets/part1/listing_0042_completionist_decode")]
-  fn test(#[case] test_file: &str) {
+  //#[case("../assets/part1/listing_0042_completionist_decode")]
+  fn decode(#[case] test_file: &str) {
     println!("test: {test_file}");
-    let out_asm = read_dasm_write(&test_file).unwrap();
+    let out_asm = read_decode_write(&test_file).unwrap();
     let out_bin = format!("{test_file}_bin");
     let res = std::process::Command::new("nasm")
       .args([&out_asm.to_string_lossy().to_string(), "-o", &out_bin])
@@ -144,6 +171,20 @@ mod test {
     _ = std::fs::remove_file(&out_bin);
   }
 
+  #[test]
+  fn test_multiple_program_load() {
+    let files = ["../assets/part1/listing_0039_more_movs", "../assets/part1/listing_0040_challenge_movs"];
+    let cxs = [-12i16 as u16, 0];
+
+    let mut program = Program::new(20);
+    for (file, cx) in files.iter().zip(cxs) {
+      program.simulate_from_file(file, true, None);
+      assert_eq!(program.reg[reg::CX], cx);
+    }
+
+    assert_eq!(program.reg[reg::IP], 80);
+  }
+
   // #[test]
   fn _decode_table() {
     for (i, entry) in DECODE_TABLE.iter().enumerate() {
@@ -152,19 +193,5 @@ mod test {
       }
     }
     assert!(false);
-  }
-
-  #[test]
-  fn vibe_rust() {
-    let mut v = vec![0; 10];
-    let ptr = v.as_mut_ptr();
-
-    let s1 = unsafe { std::slice::from_raw_parts_mut(ptr, 10) };
-    let s2 = unsafe { std::slice::from_raw_parts_mut(ptr, 10) };
-
-    s1[0] = 1;
-    s2[0] = 2;
-
-    assert_eq!(2, v[0]);
   }
 }

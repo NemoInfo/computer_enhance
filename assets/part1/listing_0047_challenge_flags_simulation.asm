@@ -1,19 +1,19 @@
 ; listing_0047_challenge_flags disassembly
 bits 16
 add bx, word 30000   ; [0000]  (bx):0000->7530 (flag):[]->[P]
-add bx, word 10000   ; [0004]  (bx):7530->9c40 (flag):[P]->[S]
-sub bx, word 5000    ; [0008]  (bx):9c40->88b8 (flag):[S]->[PS]
-sub bx, word 5000    ; [000c]  (bx):88b8->7530 (flag):[PS]->[P]
+add bx, word 10000   ; [0004]  (bx):7530->9c40 (flag):[P]->[SO]
+sub bx, word 5000    ; [0008]  (bx):9c40->88b8 (flag):[SO]->[PAS]
+sub bx, word 5000    ; [000c]  (bx):88b8->7530 (flag):[PAS]->[PO]
 mov bx, word 1       ; [0010]  (bx):7530->0001
 mov cx, word 100     ; [0013]  (cx):0000->0064
-add bx, cx           ; [0016]  (bx):0001->0065
+add bx, cx           ; [0016]  (bx):0001->0065 (flag):[PO]->[P]
 mov dx, word 10      ; [0018]  (dx):0000->000a
-sub cx, dx           ; [001b]  (cx):0064->005a
-add bx, word -25536  ; [001d]  (bx):0065->9ca5 (flag):[P]->[PS]
-add cx, word -90     ; [0021]  (cx):005a->0000 (flag):[PS]->[PZ]
+sub cx, dx           ; [001b]  (cx):0064->005a (flag):[P]->[PA]
+add bx, word -25536  ; [001d]  (bx):0065->9ca5 (flag):[PA]->[PS]
+add cx, word -90     ; [0021]  (cx):005a->0000 (flag):[PS]->[CPAZ]
 mov sp, word 99      ; [0024]  (sp):0000->0063
 mov bp, word 98      ; [0027]  (bp):0000->0062
-cmp bp, sp           ; [002a]  (flag):[PZ]->[PS]
+cmp bp, sp           ; [002a]  (flag):[CPAZ]->[CPAS]
 
 ; +---------------------+
 ; |    Register Store   |
@@ -46,5 +46,5 @@ cmp bp, sp           ; [002a]  (flag):[PZ]->[PS]
 ; +----+-------+--------+
 ; | IP | x002c | 44     |
 ; +----+-------+--------+
-; |FLAG| x0084 |  [PS]  |
+; |FLAG| x0095 | [CPAS] |
 ; +----+-------+--------+

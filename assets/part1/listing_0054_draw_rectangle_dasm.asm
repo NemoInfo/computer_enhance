@@ -1,0 +1,15 @@
+; listing_0054_draw_rectangle disassembly
+bits 16
+mov bp, word 256               ; [f0000] 4  [ 4 + tf 0 * 4 + ea 0 ]
+mov dx, word 0                 ; [f0003] 4  [ 4 + tf 0 * 4 + ea 0 ]
+mov cx, word 0                 ; [f0006] 4  [ 4 + tf 0 * 4 + ea 0 ]
+mov [bp + 0], cx               ; [f0009] 18 [ 9 + tf 1 * 4 + ea 5 ]
+mov [bp + 2], dx               ; [f000c] 22 [ 9 + tf 1 * 4 + ea 9 ]
+mov [bp + 3], byte -1          ; [f000f] 23 [10 + tf 1 * 4 + ea 9 ]
+add bp, word 4                 ; [f0013] 4  [ 4 + tf 0 * 4 + ea 0 ]
+add cx, word 1                 ; [f0016] 4  [ 4 + tf 0 * 4 + ea 0 ]
+cmp cx, word 64                ; [f0019] 4  [ 4 + tf 0 * 4 + ea 0 ]
+jnz $-19                       ; [f001c] 4  [ 4 + tf 0 * 4 + ea 0 ]
+add dx, word 1                 ; [f001e] 4  [ 4 + tf 0 * 4 + ea 0 ]
+cmp dx, word 64                ; [f0021] 4  [ 4 + tf 0 * 4 + ea 0 ]
+jnz $-30                       ; [f0024] 4  [ 4 + tf 0 * 4 + ea 0 ]
