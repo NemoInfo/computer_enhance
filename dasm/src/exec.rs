@@ -30,7 +30,29 @@ pub fn exec_mov(inst: &Instruction, sa: &mut SegmentedAccess, regs: &mut Registe
   let [dst, src] = &inst.operands;
   let w = inst.flags & InstructionFlag::Wide as u16 != 0;
   let val = src.get_val(&regs, sa, inst.segment_register);
+  dst.set_val(regs, sa, Some(SS), w, val);
+  Ok(ExecuteResult::new().with_alignment(inst.has_unaligned_address_operand(&regs)))
+}
+
+pub fn exec_push(inst: &Instruction, sa: &mut SegmentedAccess, regs: &mut Registers) -> ResultExecuteResult {
+  let w = inst.flags & InstructionFlag::Wide as u16 != 0; // Tehnically not needed
+
+  regs[SP] -= 2;
+  let [_, src] = &inst.operands;
+  let val = src.get_val(&regs, sa, inst.segment_register);
+  sa.set_memory_at_segmented_address(&regs, SS, regs[SP], val, w);
+
+  Ok(ExecuteResult::new().with_alignment(inst.has_unaligned_address_operand(&regs)))
+}
+
+pub fn exec_pop(inst: &Instruction, sa: &mut SegmentedAccess, regs: &mut Registers) -> ResultExecuteResult {
+  let w = inst.flags & InstructionFlag::Wide as u16 != 0; // Tehnically not needed
+
+  let [dst, _] = &inst.operands;
+  let val = sa.get_memory_at_segmented_address(&regs, SS, regs[SP], w);
   dst.set_val(regs, sa, inst.segment_register, w, val);
+  regs[SP] += 2;
+
   Ok(ExecuteResult::new().with_alignment(inst.has_unaligned_address_operand(&regs)))
 }
 
@@ -88,7 +110,7 @@ pub fn exec_cmp(inst: &Instruction, sa: &mut SegmentedAccess, regs: &mut Registe
 
 fn exec_conditional_jump<F>(inst: &Instruction, regs: &mut Registers, condition: F) -> ResultExecuteResult
 where
-  F: Fn(&Registers) -> bool,
+  F: Fn(&mut Registers) -> bool,
 {
   let [_, src] = &inst.operands;
   let disp = src.get_immediate().expect("Jump src can only be immediate") as i16;
@@ -116,7 +138,6 @@ conditional_jump!(exec_js, |reg| reg.get_flag(SF));
 conditional_jump!(exec_jp, |reg| reg.get_flag(PF));
 conditional_jump!(exec_jl, |reg| reg.get_flag(SF) ^ reg.get_flag(OF));
 conditional_jump!(exec_jg, |reg| !(reg.get_flag(SF) ^ reg.get_flag(OF) | reg.get_flag(ZF)));
-
 conditional_jump!(exec_jno, |reg| !reg.get_flag(OF));
 conditional_jump!(exec_jnb, |reg| !reg.get_flag(CF));
 conditional_jump!(exec_jnz, |reg| !reg.get_flag(ZF));
@@ -125,18 +146,24 @@ conditional_jump!(exec_jns, |reg| !reg.get_flag(SF));
 conditional_jump!(exec_jnp, |reg| !reg.get_flag(PF));
 conditional_jump!(exec_jnl, |reg| !(reg.get_flag(SF) ^ reg.get_flag(OF)));
 conditional_jump!(exec_jng, |reg| reg.get_flag(SF) ^ reg.get_flag(OF) | reg.get_flag(ZF));
+conditional_jump!(exec_jcxz, |reg| reg[CX] == 0);
 
-pub fn exec_loopnz(inst: &Instruction, _sa: &mut SegmentedAccess, regs: &mut Registers) -> ResultExecuteResult {
-  regs[CX] -= 1;
-  exec_conditional_jump(inst, regs, |reg| !reg.get_flag(ZF) && reg[CX] != 0)
-}
+conditional_jump!(exec_loopz, |reg| {
+  reg[CX] -= 1;
+  !reg.get_flag(ZF) && reg[CX] == 0
+});
 
-pub fn exec_loop(inst: &Instruction, _sa: &mut SegmentedAccess, regs: &mut Registers) -> ResultExecuteResult {
-  regs[CX] -= 1;
-  exec_conditional_jump(inst, regs, |reg| reg[CX] != 0)
-}
+conditional_jump!(exec_loopnz, |reg| {
+  reg[CX] -= 1;
+  !reg.get_flag(ZF) && reg[CX] == 1
+});
 
-pub fn exec_todo(inst: &Instruction, _sa: &mut SegmentedAccess, _reg: &mut Registers) -> ResultExecuteResult {
+conditional_jump!(exec_loop, |reg| {
+  reg[CX] -= 1;
+  reg[CX] != 0
+});
+
+pub fn _exec_todo(inst: &Instruction, _sa: &mut SegmentedAccess, _reg: &mut Registers) -> ResultExecuteResult {
   Err(format!("{:?} not implemented", inst.kind))
 }
 

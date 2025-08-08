@@ -44,7 +44,10 @@ impl Program {
       at.segment_offset = reg[IP];
 
       let opcode = u16::from_be_bytes(at[..2].try_into().unwrap()) as usize;
-      let mut instruction = DECODE_TABLE[opcode].expect(&format!("Unexpected instruction code {opcode:016b}"))(&at);
+      let mut instruction = DECODE_TABLE[opcode]
+        .expect(&format!("Parsed so far:\n{}\nUnexpected instruction code {opcode:016b}", lines.join("\n")))(
+        &at
+      );
       reg[IP] += instruction.size;
 
       match instruction.kind {
@@ -276,7 +279,7 @@ impl EffectiveAddressExpression {
     val: u16,
   ) {
     let sr = segment_register.expect("All effective address calculations have a segment register");
-    let sr = registers.get(sr);
+    let sr = registers[sr];
     let mut segment = memory.clone_from(sr);
     let addr = self.get_addr(registers);
     let [lo, hi] = val.to_le_bytes();
@@ -289,7 +292,7 @@ impl EffectiveAddressExpression {
 
   pub fn get(&self, registers: &Registers, memory: &mut SegmentedAccess, segment_register: Option<Register>) -> u16 {
     let sr = segment_register.expect("All effective address calculations have a segment register");
-    let sr = registers.get(sr);
+    let sr = registers[sr];
     let segment = memory.clone_from(sr);
     let addr = self.get_addr(registers);
 
@@ -419,6 +422,43 @@ impl<'a> SegmentedAccess<'a> {
   pub fn get_absoulute_address_of(&self, offset: u16) -> usize {
     let SegmentedAccess { mask, segment_base, segment_offset, .. } = *self;
     (((segment_base as usize) << 4) + (segment_offset as usize + offset as usize)) & (mask as usize)
+  }
+
+  pub fn get_memory_at_segmented_address(
+    &mut self,
+    registers: &Registers,
+    segment_register: Register,
+    addr: u16,
+    w: bool,
+  ) -> u16 {
+    let sr = registers[segment_register];
+    let segment = self.clone_from(sr);
+
+    let [lo, hi] = segment[addr..addr + 2].try_into().unwrap();
+
+    if w {
+      u16::from_le_bytes([lo, hi])
+    } else {
+      lo as u16
+    }
+  }
+
+  pub fn set_memory_at_segmented_address(
+    &mut self,
+    registers: &Registers,
+    segment_register: Register,
+    addr: u16,
+    val: u16,
+    w: bool,
+  ) {
+    let sr = registers[segment_register];
+    let mut segment = self.clone_from(sr);
+    let [lo, hi] = val.to_le_bytes();
+
+    segment[addr] = lo;
+    if w {
+      segment[addr + 1] = hi;
+    }
   }
 
   pub fn get_memory(&self, offset: u16) -> &[u8] {

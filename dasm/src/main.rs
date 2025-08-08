@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-mod clocks;
+mod cycles;
 mod exec;
 mod table;
 mod types;
@@ -155,7 +155,22 @@ mod test {
   #[case("../assets/part1/listing_0039_more_movs")]
   #[case("../assets/part1/listing_0040_challenge_movs")]
   #[case("../assets/part1/listing_0041_add_sub_cmp_jnz")]
-  //#[case("../assets/part1/listing_0042_completionist_decode")]
+  #[case("../assets/part1/listing_0042_completionist_decode")]
+  #[case("../assets/part1/listing_0043_immediate_movs")]
+  #[case("../assets/part1/listing_0044_register_movs")]
+  #[case("../assets/part1/listing_0045_challenge_register_movs")]
+  #[case("../assets/part1/listing_0046_add_sub_cmp")]
+  #[case("../assets/part1/listing_0047_challenge_flags")]
+  #[case("../assets/part1/listing_0048_ip_register")]
+  #[case("../assets/part1/listing_0049_conditional_jumps")]
+  #[case("../assets/part1/listing_0050_challenge_jumps")]
+  #[case("../assets/part1/listing_0051_memory_mov")]
+  #[case("../assets/part1/listing_0052_memory_add_loop")]
+  #[case("../assets/part1/listing_0053_add_loop_challenge")]
+  #[case("../assets/part1/listing_0054_draw_rectangle")]
+  #[case("../assets/part1/listing_0055_challenge_rectangle")]
+  #[case("../assets/part1/listing_0056_estimating_cycles")]
+  #[case("../assets/part1/listing_0057_challenge_cycles")]
   fn decode(#[case] test_file: &str) {
     println!("test: {test_file}");
     let out_asm = read_decode_write(&test_file).unwrap();

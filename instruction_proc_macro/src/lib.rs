@@ -26,6 +26,7 @@ enum BitArg {
   DISP_LO,
   DISP_HI,
   DATA_LO,
+  DATA8,
   DATA_HI,
   DATA_HI_IF_SW,
   ADDR_LO,
@@ -62,6 +63,7 @@ impl BitVal {
         BitArg::IP8 => 8,
         BitArg::DISP_LO => 8,
         BitArg::DISP_HI => 8,
+        BitArg::DATA8 => 8,
         BitArg::DATA_LO => 8,
         BitArg::DATA_HI => 8,
         BitArg::DATA_HI_IF_SW => 8,
@@ -261,6 +263,8 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
     inner_content.push(quote! {
       let mut bytes_read = 0u16;
       let mut flags = 0u16;
+      let mut disp_lo: Option<u8> = None;
+      let mut disp_hi: Option<u8> = None;
     });
 
     for pattern in pattern_bytes.iter() {
@@ -280,7 +284,7 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
           }),
           BitVal::Arg(BitArg::DISP_LO) => {
             inner_content.push(quote! {
-              let disp_lo = if (mod_ == 0b00 && r_m_ == 0b110) || (mod_ == 0b01) || (mod_ == 0b10) { Some(b) } else {
+              disp_lo = if (mod_ == 0b00 && r_m_ == 0b110) || (mod_ == 0b01) || (mod_ == 0b10) { Some(b) } else {
                 bytes_read -= 1;
                 None
               };
@@ -288,7 +292,7 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
           }
           BitVal::Arg(BitArg::DISP_HI) => {
             inner_content.push(quote! {
-              let disp_hi = if (mod_ == 0b00 && r_m_ == 0b110) || (mod_ == 0b10) { Some(b) } else {
+              disp_hi = if (mod_ == 0b00 && r_m_ == 0b110) || (mod_ == 0b10) { Some(b) } else {
                 bytes_read -= 1;
                 None
               };
@@ -370,7 +374,7 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
               *mod_operand = Operand::Memory(EffectiveAddressExpression::Direct(displacement));
               segment_register = Some(reg::DS);
             },
-            x if x < 0b100 => {
+            0b00 | 0b01 | 0b10 => {
               let displacement = if let Some(disp_hi) = disp_hi {
                 i16::from_le_bytes([disp_lo.unwrap(), disp_hi])
               } else if let Some(disp_lo) = disp_lo {
@@ -442,6 +446,17 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
           mod_operand
         } else { panic!("Immediate value but no free operands") };
         *free_operand = Operand::Immediate(Immediate::JumpDisplacement(ip8_ as i8 as i16));
+      });
+    }
+
+    if hs.contains(&BitArg::DATA8) {
+      inner_content.push(quote! {
+        let free_operand = if let Operand::None = reg_operand {
+          reg_operand
+        } else if let Operand::None = mod_operand {
+          mod_operand
+        } else { panic!("Immediate value but no free operands") };
+        *free_operand = Operand::Immediate(Immediate::ByteValue(data8_ as i8));
       });
     }
 

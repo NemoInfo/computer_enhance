@@ -109,7 +109,7 @@ impl EffectiveAddressExpression {
     let mut clocks = match self {
       EffectiveAddressExpression::Direct(_) => 6,
       EffectiveAddressExpression::Expression { terms, displacement } => {
-        displacement.signum().abs() as u32 * 4
+        (*displacement != 0) as u32 * 4
           + match terms {
             [Some(_), None] => 5,
             [Some(Term { register: BP }), Some(Term { register: DI })]
@@ -194,7 +194,7 @@ impl TimingState {
       LOOPZ | JCXZ => InstructionTiming::new_fixed(if self.branch_taken { 18 } else { 6 }, 0, 0),
       LOOP => InstructionTiming::new_fixed(if self.branch_taken { 17 } else { 5 }, 0, 0),
       SEGMENT => InstructionTiming::new_fixed(2, 0, 0),
-      // other => todo!("Timing not implemeted for {other:?}"),
+      other => todo!("Timing not implemeted for {other:?}"),
     }
   }
 }

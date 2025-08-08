@@ -9,6 +9,20 @@ instructions! {
   [MOV, exec_mov, [B(0b1010001, 7), W, ADDR_LO, ADDR_HI, I(REG, 0), I(D,0)]],
   [MOV, exec_mov, [B(0b100011, 6), D, B(0,1), MOD, B(0,1), SR, R_M, DISP_LO, DISP_HI, I(W,1)]],
 
+  [PUSH, exec_push, [B(0xFF, 8), MOD, B(0b110, 3), R_M, DISP_LO, DISP_HI, I(W, 1), I(D, 1)]],
+  [PUSH, exec_push, [B(0b01010, 5), REG, I(W, 1)]],
+  [PUSH, exec_push, [B(0b000, 3), SR, B(0b110, 3), I(W, 1), I(D, 0)]],
+
+  [POP, exec_pop, [B(0b10001111, 8), MOD, B(0b000, 3), R_M, DISP_LO, DISP_HI, I(W, 1), I(D, 0)]],
+  [POP, exec_pop, [B(0b01011, 5), REG, I(W, 1), I(D, 1)]],
+  [POP, exec_pop, [B(0b000, 3), SR, B(0b111, 3), I(W, 1), I(D, 1)]],
+
+  [EXCHG, _exec_todo, [B(0b1000011, 7), W, MOD, REG, R_M, DISP_LO, DISP_HI]],
+  [EXCHG, _exec_todo, [B(0b10010, 5), I(MOD, 0b11), REG, I(W, 1), I(R_M, 0)]],
+
+  [IN, _exec_todo, [B(0b1110010, 7), W, DATA8, I(REG, 0), I(D, 1)]],
+  [IN, _exec_todo, [B(0b1110110, 7), W, I(REG, 0), I(R_M, 0b010), I(MOD, 0b11), I(D, 1)]],
+
   [ADD, exec_add, [B(0b000000, 6), D, W, MOD, REG, R_M, DISP_LO, DISP_HI]],
   [ADD, exec_add, [B(0b100000, 6), S, W, MOD, B(0b000,3), R_M, DISP_LO, DISP_HI, DATA_LO, DATA_HI_IF_SW, I(D,0)]],
   [ADD, exec_add, [B(0b0000010, 7), W, DATA_LO, DATA_HI, I(D,1), I(REG, 0)]],
@@ -39,9 +53,9 @@ instructions! {
   [JG , exec_jg , [B(0x7f, 8), IP8]],
 
   [LOOPNZ, exec_loopnz, [B(0xe0, 8), IP8]],
-  [LOOPZ , exec_todo  , [B(0xe1, 8), IP8]],
+  [LOOPZ , exec_loopz , [B(0xe1, 8), IP8]],
   [LOOP  , exec_loop  , [B(0xe2, 8), IP8]],
-  [JCXZ  , exec_todo  , [B(0xe3, 8), IP8]],
+  [JCXZ  , exec_jcxz  , [B(0xe3, 8), IP8]],
 
   [SEGMENT, exec_continue, [B(0b001, 3), SR, B(0b110, 3), I(D,0)]],
 }
