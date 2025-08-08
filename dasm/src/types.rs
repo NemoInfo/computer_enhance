@@ -1,4 +1,4 @@
-use crate::clocks::{Processor, TimingState};
+use crate::cycles::{Processor, TimingState};
 use crate::exec::ResultExecuteResult;
 use crate::table::{InstructionKind, DECODE_TABLE};
 use instruction_proc_macro::AsRef;
