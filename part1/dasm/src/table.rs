@@ -17,11 +17,17 @@ instructions! {
   [POP, exec_pop, [B(0b01011, 5), REG, I(W, 1), I(D, 1)]],
   [POP, exec_pop, [B(0b000, 3), SR, B(0b111, 3), I(W, 1), I(D, 1)]],
 
-  [EXCHG, _exec_todo, [B(0b1000011, 7), W, MOD, REG, R_M, DISP_LO, DISP_HI]],
-  [EXCHG, _exec_todo, [B(0b10010, 5), I(MOD, 0b11), REG, I(W, 1), I(R_M, 0)]],
+  [EXCHG, exec_exchg, [B(0b1000011, 7), W, MOD, REG, R_M, DISP_LO, DISP_HI]],
+  [EXCHG, exec_exchg, [B(0b10010, 5), I(MOD, 0b11), REG, I(W, 1), I(R_M, 0)]],
 
-  [IN, _exec_todo, [B(0b1110010, 7), W, DATA8, I(REG, 0), I(D, 1)]],
-  [IN, _exec_todo, [B(0b1110110, 7), W, I(REG, 0), I(R_M, 0b010), I(MOD, 0b11), I(D, 1)]],
+  [IN, err_exec_io, [B(0b1110010, 7), W, DATA8, I(REG, 0), I(D, 1)]],
+  [IN, err_exec_io, [B(0b1110110, 7), W, I(REG, 0), I(R_M, 0b010), I(MOD, 0b11), I(D, 1), I(W_R_M, 1)]],
+
+  [OUT, err_exec_io, [B(0b1110011, 7), W, DATA8, I(REG, 0), I(D, 0)]],
+  [OUT, err_exec_io, [B(0b1110111, 7), W, I(REG, 0), I(R_M, 0b010), I(MOD, 0b11), I(D, 0), I(W_R_M, 1)]],
+
+  [XLAT, exec_xlat, [B(0b11010111, 8)]],
+  [LEA , exec_lea , [B(0b10001101, 8), MOD, REG, R_M, DISP_LO, DISP_HI, I(W, 1), I(D, 1)]],
 
   [ADD, exec_add, [B(0b000000, 6), D, W, MOD, REG, R_M, DISP_LO, DISP_HI]],
   [ADD, exec_add, [B(0b100000, 6), S, W, MOD, B(0b000,3), R_M, DISP_LO, DISP_HI, DATA_LO, DATA_HI_IF_SW, I(D,0)]],

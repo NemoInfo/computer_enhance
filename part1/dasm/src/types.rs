@@ -191,6 +191,20 @@ impl Operand {
     }
   }
 
+  pub fn expect_register(&self) -> Result<&Register, String> {
+    match self {
+      Self::Register(reg) => Ok(reg),
+      other => Err(format!("Expected register, got {other:?}")),
+    }
+  }
+
+  pub fn expect_memory(&self) -> Result<&EffectiveAddressExpression, String> {
+    match self {
+      Self::Memory(ea) => Ok(ea),
+      other => Err(format!("Expected effecive address, got {other:?}")),
+    }
+  }
+
   pub fn is_none(&self) -> bool {
     match self {
       Self::None => true,
@@ -467,7 +481,7 @@ impl<'a> SegmentedAccess<'a> {
   }
 
   pub fn full(memory: &'a mut [u8]) -> Self {
-    let size_log2 = memory.len().ilog2();
+    let size_log2 = msb_asm(memory.len());
     assert_eq!(1 << size_log2, memory.len(), "Memory must be power of 2");
     Self { memory, mask: (1 << size_log2) - 1, segment_offset: 0, segment_base: 0 }
   }
@@ -725,4 +739,11 @@ pub mod reg {
   pub const DS: Register = reg(R::DS, 0, T);
   pub const IP: Register = reg(R::IP, 0, T);
   pub const FLAG: Register = reg(R::FLAG, 0, T);
+}
+
+pub fn msb_asm(mut num: usize) -> usize {
+  unsafe {
+    core::arch::asm!("bsr {num:e}, {num:e}", num = inout(reg) num, options(pure, nomem));
+  }
+  num
 }

@@ -144,33 +144,33 @@ fn main() {
   }
 }
 
+
 #[cfg(test)]
 mod test {
   use super::*;
-  use crate::table::DECODE_TABLE;
 
   #[rstest::rstest]
-  #[case("../assets/part1/listing_0037_single_register_mov")]
-  #[case("../assets/part1/listing_0038_many_register_mov")]
-  #[case("../assets/part1/listing_0039_more_movs")]
-  #[case("../assets/part1/listing_0040_challenge_movs")]
-  #[case("../assets/part1/listing_0041_add_sub_cmp_jnz")]
-  #[case("../assets/part1/listing_0042_completionist_decode")]
-  #[case("../assets/part1/listing_0043_immediate_movs")]
-  #[case("../assets/part1/listing_0044_register_movs")]
-  #[case("../assets/part1/listing_0045_challenge_register_movs")]
-  #[case("../assets/part1/listing_0046_add_sub_cmp")]
-  #[case("../assets/part1/listing_0047_challenge_flags")]
-  #[case("../assets/part1/listing_0048_ip_register")]
-  #[case("../assets/part1/listing_0049_conditional_jumps")]
-  #[case("../assets/part1/listing_0050_challenge_jumps")]
-  #[case("../assets/part1/listing_0051_memory_mov")]
-  #[case("../assets/part1/listing_0052_memory_add_loop")]
-  #[case("../assets/part1/listing_0053_add_loop_challenge")]
-  #[case("../assets/part1/listing_0054_draw_rectangle")]
-  #[case("../assets/part1/listing_0055_challenge_rectangle")]
-  #[case("../assets/part1/listing_0056_estimating_cycles")]
-  #[case("../assets/part1/listing_0057_challenge_cycles")]
+  #[case("../assets/listing_0037_single_register_mov")]
+  #[case("../assets/listing_0038_many_register_mov")]
+  #[case("../assets/listing_0039_more_movs")]
+  #[case("../assets/listing_0040_challenge_movs")]
+  #[case("../assets/listing_0041_add_sub_cmp_jnz")]
+  #[case("../assets/listing_0042_completionist_decode")]
+  #[case("../assets/listing_0043_immediate_movs")]
+  #[case("../assets/listing_0044_register_movs")]
+  #[case("../assets/listing_0045_challenge_register_movs")]
+  #[case("../assets/listing_0046_add_sub_cmp")]
+  #[case("../assets/listing_0047_challenge_flags")]
+  #[case("../assets/listing_0048_ip_register")]
+  #[case("../assets/listing_0049_conditional_jumps")]
+  #[case("../assets/listing_0050_challenge_jumps")]
+  #[case("../assets/listing_0051_memory_mov")]
+  #[case("../assets/listing_0052_memory_add_loop")]
+  #[case("../assets/listing_0053_add_loop_challenge")]
+  #[case("../assets/listing_0054_draw_rectangle")]
+  #[case("../assets/listing_0055_challenge_rectangle")]
+  #[case("../assets/listing_0056_estimating_cycles")]
+  #[case("../assets/listing_0057_challenge_cycles")]
   fn decode(#[case] test_file: &str) {
     println!("test: {test_file}");
     let out_asm = read_decode_write(&test_file).unwrap();
@@ -188,7 +188,7 @@ mod test {
 
   #[test]
   fn test_multiple_program_load() {
-    let files = ["../assets/part1/listing_0039_more_movs", "../assets/part1/listing_0040_challenge_movs"];
+    let files = ["../listing_0039_more_movs", "../listing_0040_challenge_movs"];
     let cxs = [-12i16 as u16, 0];
 
     let mut program = Program::new(20);
@@ -198,15 +198,5 @@ mod test {
     }
 
     assert_eq!(program.reg[reg::IP], 80);
-  }
-
-  // #[test]
-  fn _decode_table() {
-    for (i, entry) in DECODE_TABLE.iter().enumerate() {
-      if let Some(entry) = entry {
-        println!("{i:016b} {entry:?}");
-      }
-    }
-    assert!(false);
   }
 }

@@ -30,7 +30,7 @@ pub fn exec_mov(inst: &Instruction, sa: &mut SegmentedAccess, regs: &mut Registe
   let [dst, src] = &inst.operands;
   let w = inst.flags & InstructionFlag::Wide as u16 != 0;
   let val = src.get_val(&regs, sa, inst.segment_register);
-  dst.set_val(regs, sa, Some(SS), w, val);
+  dst.set_val(regs, sa, inst.segment_register, w, val);
   Ok(ExecuteResult::new().with_alignment(inst.has_unaligned_address_operand(&regs)))
 }
 
@@ -54,6 +54,34 @@ pub fn exec_pop(inst: &Instruction, sa: &mut SegmentedAccess, regs: &mut Registe
   regs[SP] += 2;
 
   Ok(ExecuteResult::new().with_alignment(inst.has_unaligned_address_operand(&regs)))
+}
+
+pub fn exec_exchg(inst: &Instruction, sa: &mut SegmentedAccess, regs: &mut Registers) -> ResultExecuteResult {
+  let [dst, src] = &inst.operands;
+  let w = inst.flags & InstructionFlag::Wide as u16 != 0;
+  let sval = src.get_val(&regs, sa, inst.segment_register);
+  let dval = dst.get_val(&regs, sa, inst.segment_register);
+  dst.set_val(regs, sa, Some(SS), w, sval);
+  src.set_val(regs, sa, Some(SS), w, dval);
+  // TODO should do somthing if LOCK prefix
+  Ok(ExecuteResult::new().with_alignment(inst.has_unaligned_address_operand(&regs)))
+}
+
+pub fn exec_xlat(inst: &Instruction, sa: &mut SegmentedAccess, regs: &mut Registers) -> ResultExecuteResult {
+  regs.set(
+    AL,
+    sa.get_memory_at_segmented_address(regs, inst.segment_register.unwrap_or(DS), regs.get(AL) + regs[BX], false),
+  );
+  Ok(ExecuteResult::new())
+}
+
+pub fn exec_lea(inst: &Instruction, _sa: &mut SegmentedAccess, regs: &mut Registers) -> ResultExecuteResult {
+  let [dst, src] = &inst.operands;
+  let ea = src.expect_memory().map_err(|e| format!("LEA: {e}"))?;
+  let reg = dst.expect_register().map_err(|e| format!("LEA: {e}"))?;
+  let addr = ea.get_addr(regs);
+  regs.set(reg, addr);
+  Ok(ExecuteResult::new())
 }
 
 pub fn exec_add(inst: &Instruction, sa: &mut SegmentedAccess, regs: &mut Registers) -> ResultExecuteResult {
@@ -112,6 +140,18 @@ fn exec_conditional_jump<F>(inst: &Instruction, regs: &mut Registers, condition:
 where
   F: Fn(&mut Registers) -> bool,
 {
+  //use crate::table::InstructionKind::*;
+  //let should_branch = match inst.kind {
+  //  JO => regs.get_flag(OF),
+  //  JB => regs.get_flag(CF),
+  //  JZ => regs.get_flag(ZF),
+  //  JA => !(regs.get_flag(CF) || regs.get_flag(ZF)),
+  //  JS => regs.get_flag(SF),
+  //  JP => regs.get_flag(PF),
+  //  JL => regs.get_flag(SF) ^ regs.get_flag(OF),
+  //  _ => panic!("Not a conditional jump"),
+  //};
+
   let [_, src] = &inst.operands;
   let disp = src.get_immediate().expect("Jump src can only be immediate") as i16;
   if condition(regs) {
@@ -162,6 +202,10 @@ conditional_jump!(exec_loop, |reg| {
   reg[CX] -= 1;
   reg[CX] != 0
 });
+
+pub fn err_exec_io(inst: &Instruction, _sa: &mut SegmentedAccess, _reg: &mut Registers) -> ResultExecuteResult {
+  Err(format!("{:?} not implemented, I/O isn't simulated \\_O_/", inst.kind))
+}
 
 pub fn _exec_todo(inst: &Instruction, _sa: &mut SegmentedAccess, _reg: &mut Registers) -> ResultExecuteResult {
   Err(format!("{:?} not implemented", inst.kind))

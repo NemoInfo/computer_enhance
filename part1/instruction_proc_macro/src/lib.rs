@@ -22,6 +22,7 @@ enum BitArg {
   S,
   SR,
   W,
+  W_R_M,
   IP8,
   DISP_LO,
   DISP_HI,
@@ -60,6 +61,7 @@ impl BitVal {
         BitArg::SR => 2,
         BitArg::D => 1,
         BitArg::W => 1,
+        BitArg::W_R_M => 1,
         BitArg::IP8 => 8,
         BitArg::DISP_LO => 8,
         BitArg::DISP_HI => 8,
@@ -353,7 +355,12 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
     if hs.contains(&BitArg::W) {
       inner_content.push(quote! {
         flags |= InstructionFlag::Wide as u16;
-      })
+      });
+      if !hs.contains(&BitArg::W_R_M) {
+        inner_content.push(quote! {
+          let w_r_m_ = w_;
+        })
+      }
     }
 
     for bitarg in &hs {
@@ -367,7 +374,7 @@ fn generate_instruction_decode_table(tokens: TokenStream) -> TokenStream {
         BitArg::MOD => inner_content.push(quote! {
           match mod_  {
             0b11 => {
-               *mod_operand = Operand::Register(REG_TO_REGISTER[r_m_ as usize][w_ as usize]);
+               *mod_operand = Operand::Register(REG_TO_REGISTER[r_m_ as usize][w_r_m_ as usize]);
             },
             0b00 if r_m_ == 0b110 => {
               let displacement = u16::from_le_bytes([disp_lo.unwrap(), disp_hi.unwrap()]);

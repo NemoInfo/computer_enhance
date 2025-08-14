@@ -1,6 +1,7 @@
-/target
+*/target/
 
 # Ignore binary files
-/assets/part1/*
-!/assets/part1/*.*
-/assets/part1/*_dasm.asm
+/part1/assets/*
+!/part1/assets/*.*
+/part1/assets/*_dasm.asm
+/part2/data/*
