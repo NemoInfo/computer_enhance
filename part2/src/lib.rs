@@ -1,18 +1,15 @@
 mod generate;
-use compute::{reference_haversine, Pair, EARTH_RADIUS};
-use generate::{pair_to_json, GenerationArgs};
+use std::path::PathBuf;
+
+use generate::{GenerationArgs, GenerationMethod};
 
 mod compute;
-
-use std::{
-  io::{BufWriter, Write},
-  path::Path,
-};
 
 /*********************
 *  Argument Parsing  *
 *********************/
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{builder::ValueParser, CommandFactory, Parser, Subcommand};
+use regex::Regex;
 
 /// Program that generates haversine input
 #[derive(Debug, Parser)]
@@ -22,66 +19,64 @@ pub struct Args {
   command: Option<Command>,
 }
 
-impl Args {
-  pub fn execute(&self) -> std::io::Result<()> {
-    match &self.command {
-      None => Self::command().print_help(),
-      Some(cmd) => cmd.execute(),
-    }
-  }
-}
-
 #[derive(Debug, Subcommand)]
 enum Command {
   Generate(GenerationArgs),
+  /// Clean JSON / answer files that match the output naming convetion from a directory
+  Clean {
+    /// Output dir to save JSON/answer file to
+    #[clap(default_value = "data/", value_parser = dir_name_parser())]
+    output_dir: PathBuf,
+  },
 }
 
-impl Command {
+impl Args {
   pub fn execute(&self) -> std::io::Result<()> {
-    match &self {
-      Command::Generate(gen) => {
-        let dir = Path::new("data/");
-        assert!(dir.is_dir(), "{dir:?} is not directory");
-
-        let mut json_writer: Box<dyn FnMut(Pair) -> Result<(), std::io::Error>> = if !gen.no_json {
-          let json_name: String = gen.file_name("json");
-          let json_path = dir.join(json_name);
-          let mut json_writer = BufWriter::new(std::fs::File::create(json_path)?);
-          json_writer.write_all(r#"{"pairs":["#.as_bytes())?;
-          Box::new(move |pair| json_writer.write_all(pair_to_json(&pair).as_bytes()))
-        } else {
-          Box::new(move |_| Ok(()))
-        };
-
-        let mut bin_writer: Box<dyn FnMut(f64) -> Result<(), std::io::Error>> = if !gen.no_answers {
-          let bin_name: String = gen.file_name("");
-          let bin_path = dir.join(bin_name);
-          let mut bin_writer = BufWriter::new(std::fs::File::create(bin_path)?);
-          Box::new(move |answer| bin_writer.write_all(bytes_of(&answer)))
-        } else {
-          Box::new(move |_| Ok(()))
-        };
-
-        let mut sum = 0.0;
-        for pair in gen.generate_pairs() {
-          let answer = reference_haversine(pair, EARTH_RADIUS);
-          sum += answer;
-
-          bin_writer(answer)?;
-          json_writer(pair)?;
+    use Command::*;
+    match &self.command {
+      None => Self::command().print_help(),
+      Some(Generate(gen)) => gen.execute(),
+      Some(Clean { output_dir }) => {
+        let re = Regex::new(&format!(r"^data_({})_(\d+)_(\d+)$", GenerationMethod::lowercase_options().join("|")))
+          .map_err(|_| std::io::ErrorKind::Other)?;
+        for path in output_dir.read_dir()?.filter_map(|x| x.ok().filter(|x| x.path().is_file()).map(|x| x.path())) {
+          let Some(stem) = path.file_stem().unwrap().to_str() else {
+            continue;
+          };
+          if re.is_match(stem) {
+            std::fs::remove_file(&path)?;
+            println!("Removed file: {}", path.to_string_lossy());
+          }
         }
-        let mean = sum / gen.number as f64;
-
-        if !gen.no_json {}
-
-        println!("{}\nExpected sum: {mean}", gen.summary());
-
         Ok(())
       }
     }
   }
 }
 
-fn bytes_of<T>(t: &T) -> &[u8] {
+pub fn bytes_of<T>(t: &T) -> &[u8] {
   unsafe { std::slice::from_raw_parts((t as *const T).cast::<u8>(), core::mem::size_of::<T>()) }
+}
+
+pub fn chunked<I>(a: impl IntoIterator<Item = I>, chunk_size: usize) -> impl Iterator<Item = Vec<I>> {
+  let mut a = a.into_iter();
+  std::iter::from_fn(move || Some(a.by_ref().take(chunk_size).collect()).filter(|chunk: &Vec<_>| !chunk.is_empty()))
+}
+
+pub fn non_zero_usize_parser() -> ValueParser {
+  ValueParser::new(|s: &str| match s.parse::<usize>().map_err(|_| "must be an unsigned integer")? {
+    0 => Err("must be > 0".to_string()),
+    val => Ok(val),
+  })
+}
+
+pub fn dir_name_parser() -> ValueParser {
+  ValueParser::new(|s: &str| {
+    let path_buf = PathBuf::from(s);
+    if path_buf.is_dir() {
+      Ok(path_buf)
+    } else {
+      Err("must be directory name")
+    }
+  })
 }

@@ -144,7 +144,6 @@ fn main() {
   }
 }
 
-
 #[cfg(test)]
 mod test {
   use super::*;
@@ -188,7 +187,7 @@ mod test {
 
   #[test]
   fn test_multiple_program_load() {
-    let files = ["../listing_0039_more_movs", "../listing_0040_challenge_movs"];
+    let files = ["../assets/listing_0039_more_movs", "../assets/listing_0040_challenge_movs"];
     let cxs = [-12i16 as u16, 0];
 
     let mut program = Program::new(20);

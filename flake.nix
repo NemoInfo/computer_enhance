@@ -11,6 +11,7 @@
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = with pkgs; [ nasm cargo-expand ];
 
+        # This is not really reproducable
         shellHook = ''
           THEME="af-magic" exec $SHELL
         '';

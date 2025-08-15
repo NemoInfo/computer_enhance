@@ -1,13 +1,18 @@
-use crate::compute::{Pair, PairIter};
+use std::{
+  io::{BufWriter, Seek, Write},
+  path::PathBuf,
+};
+
+use crate::{
+  bytes_of, chunked,
+  compute::{reference_haversine, Pair, PairIter, EARTH_RADIUS},
+  dir_name_parser, non_zero_usize_parser,
+};
 
 use clap::{Args, ValueEnum};
 use rand::{Rng, SeedableRng};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum GenerationMethod {
-  Uniform,
-  Cluster,
-}
+macros::generation_method_enum!(Uniform, Cluster);
 
 /// Generate random Haversine pairs
 #[derive(Debug, Args)]
@@ -17,16 +22,70 @@ pub struct GenerationArgs {
   /// Seed of the random number generator (u64)
   seed: u64,
   /// Number of pairs to generate (usize)
-  pub number: usize,
-  /// Ommit json output file
+  #[clap(value_parser = non_zero_usize_parser())]
+  number: usize,
+  /// Ommit JSON output file
   #[clap(long)]
-  pub no_json: bool,
+  no_json: bool,
   /// Ommit answer binary file
   #[clap(long)]
-  pub no_answers: bool,
+  no_answers: bool,
+  /// Output dir to save JSON/answer file to
+  #[clap(long, default_value = "data/", value_parser = dir_name_parser())]
+  output_dir: PathBuf,
+  /// Number of pairs processed in a batch
+  #[clap(long, default_value_t = 64_000, value_parser = non_zero_usize_parser())]
+  batch_size: usize,
 }
 
 impl GenerationArgs {
+  pub fn execute(&self) -> std::io::Result<()> {
+    let mut json_writer = if !self.no_json {
+      let json_name: String = self.file_name("json");
+      let json_path = self.output_dir.join(json_name);
+      let mut json_writer = BufWriter::new(std::fs::File::create(json_path)?);
+      json_writer.write_all("{\"pairs\":[\n".as_bytes())?;
+      Some(json_writer)
+    } else {
+      None
+    };
+
+    let mut answer_writer = if !self.no_answers {
+      let answer_name: String = self.file_name("");
+      let answer_path = self.output_dir.join(answer_name);
+      let answer_writer = BufWriter::new(std::fs::File::create(answer_path)?);
+      Some(answer_writer)
+    } else {
+      None
+    };
+
+    let mut sum = 0.;
+    for chunk in chunked(self.generate_pairs(), self.batch_size) {
+      let json: Vec<_> = chunk.iter().map(|p| pair_to_json(p)).collect();
+      let answers: Vec<_> = chunk.iter().map(|&p| reference_haversine(p, EARTH_RADIUS)).collect();
+      sum += answers.iter().sum::<f64>();
+
+      if let Some(w) = &mut json_writer {
+        w.write_all(json.join(",\n").as_bytes())?;
+        w.write_all(",\n".as_bytes())?;
+      }
+
+      if let Some(w) = &mut answer_writer {
+        w.write_all(bytes_of(&answers))?;
+      }
+    }
+    let mean = sum / self.number as f64;
+
+    if let Some(w) = &mut json_writer {
+      w.seek_relative(-2)?; // Overwrite trailing comma
+      w.write_all("\n]}".as_bytes())?;
+    }
+
+    println!("{}\nExpected sum: {mean}", self.summary());
+
+    Ok(())
+  }
+
   pub fn generate_pairs<'a>(&'a self) -> PairIter {
     let Self { method, seed, number, .. } = *self;
     match method {
@@ -39,7 +98,7 @@ impl GenerationArgs {
     let Self { method, seed, number, .. } = *self;
     format!(
       "data_{}_{seed}_{number}{}{extention}",
-      format!("{method:?}").to_lowercase(),
+      method.to_lowercase_string(),
       [".", ""][extention.is_empty() as usize],
     )
   }
@@ -70,19 +129,25 @@ fn generate_cluster_pairs<'a>(seed: u64, number: usize) -> PairIter {
 }
 
 pub fn pair_to_json([[x0, y0], [x1, y1]]: &Pair) -> String {
-  format!(r#"  {{"x0":{x0:>20}, "y0":{y0:>20}, "x1":{x1:>20}, "y1":{y1:>20}}},"#)
+  format!(r#"  {{"x0":{x0:>20}, "y0":{y0:>20}, "x1":{x1:>20}, "y1":{y1:>20}}}"#)
 }
 
-//pub fn vec_pairs_to_json(pairs: &VecPairs) -> String {
-//  let mut res = vec![r#"{"pairs":["#.into()];
-//
-//  for [[x0, y0], [x1, y1]] in pairs {
-//    res.push(format!(r#"  {{"x0":{x0:>20}, "y0":{y0:>20}, "x1":{x1:>20}, "y1":{y1:>20}}},"#));
-//  }
-//  if pairs.len() > 0 {
-//    res[pairs.len()].pop(); // Remove trailing comma
-//  }
-//
-//  res.push("]}".into());
-//  res.join("\n")
-//}
+mod macros {
+  macro_rules! generation_method_enum {($($variant:ident),+ $(,)?) => {
+  #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+  pub enum GenerationMethod {
+    $($variant),+
+  }
+
+  impl GenerationMethod {
+    fn to_lowercase_string(&self) -> String {
+      format!("{self:?}").to_lowercase()
+    }
+
+    pub fn lowercase_options() -> Vec<String> {
+      vec![$(GenerationMethod::$variant.to_lowercase_string()),+]
+    }
+  }
+  };}
+  pub(crate) use generation_method_enum;
+}
