@@ -1,14 +1,18 @@
 mod generate;
 use std::path::PathBuf;
 
+use compute::{reference_haversine, EARTH_RADIUS};
 use generate::{GenerationArgs, GenerationMethod};
 
 mod compute;
+
+mod json;
 
 /*********************
 *  Argument Parsing  *
 *********************/
 use clap::{builder::ValueParser, CommandFactory, Parser, Subcommand};
+use json::parse_json;
 use regex::Regex;
 
 /// Program that generates haversine input
@@ -28,6 +32,10 @@ enum Command {
     #[clap(default_value = "data/", value_parser = dir_name_parser())]
     output_dir: PathBuf,
   },
+  Verify {
+    /// Path of file to verify
+    file: PathBuf,
+  },
 }
 
 impl Args {
@@ -36,6 +44,33 @@ impl Args {
     match &self.command {
       None => Self::command().print_help(),
       Some(Generate(gen)) => gen.execute(),
+      Some(Verify { file }) => {
+        let json_path = file.with_extension("json");
+        let answer_path = file.with_extension("answer");
+        assert!(json_path.exists() && json_path.is_file());
+        assert!(answer_path.exists() && answer_path.is_file());
+        let json = std::fs::read_to_string(json_path)?;
+        let answer = std::fs::read(answer_path)?;
+        let answers: Vec<f64> =
+          answer.chunks_exact(std::mem::size_of::<f64>()).map(|b| f64::from_le_bytes(b.try_into().unwrap())).collect();
+        let json_val = parse_json(&json).expect("Could not parse JSON");
+
+        let json::Value::Object(map) = json_val else { panic!("expected map") };
+        let pairs = map.get("pairs").expect("expected \"pairs\" entry");
+        let json::Value::Array(pairs) = pairs else { panic!("pairs entry should be array") };
+        for (pair, answer) in pairs.iter().zip(answers) {
+          let json::Value::Object(pair) = pair else { panic!("expected map") };
+          let json::Value::Number(json::Number::F64(x0)) = pair.get("x0").expect("x0 entry required") else { panic!() };
+          let json::Value::Number(json::Number::F64(y0)) = pair.get("y0").expect("y0 entry required") else { panic!() };
+          let json::Value::Number(json::Number::F64(x1)) = pair.get("x1").expect("x1 entry required") else { panic!() };
+          let json::Value::Number(json::Number::F64(y1)) = pair.get("y1").expect("y1 entry required") else { panic!() };
+          let computed = reference_haversine([[*x0, *y0], [*x1, *y1]], EARTH_RADIUS);
+          println!("Expected: {answer}\nComputed: {computed}");
+          assert_eq!(answer, computed);
+        }
+
+        Ok(())
+      }
       Some(Clean { output_dir }) => {
         let re = Regex::new(&format!(r"^data_({})_(\d+)_(\d+)$", GenerationMethod::lowercase_options().join("|")))
           .map_err(|_| std::io::ErrorKind::Other)?;
@@ -52,10 +87,6 @@ impl Args {
       }
     }
   }
-}
-
-pub fn bytes_of<T>(t: &T) -> &[u8] {
-  unsafe { std::slice::from_raw_parts((t as *const T).cast::<u8>(), core::mem::size_of::<T>()) }
 }
 
 pub fn chunked<I>(a: impl IntoIterator<Item = I>, chunk_size: usize) -> impl Iterator<Item = Vec<I>> {

@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-  bytes_of, chunked,
+  chunked,
   compute::{reference_haversine, Pair, PairIter, EARTH_RADIUS},
   dir_name_parser, non_zero_usize_parser,
 };
@@ -51,7 +51,7 @@ impl GenerationArgs {
     };
 
     let mut answer_writer = if !self.no_answers {
-      let answer_name: String = self.file_name("");
+      let answer_name: String = self.file_name("answer");
       let answer_path = self.output_dir.join(answer_name);
       let answer_writer = BufWriter::new(std::fs::File::create(answer_path)?);
       Some(answer_writer)
@@ -71,7 +71,10 @@ impl GenerationArgs {
       }
 
       if let Some(w) = &mut answer_writer {
-        w.write_all(bytes_of(&answers))?;
+        let bytes: &[u8] = unsafe {
+          std::slice::from_raw_parts(answers.as_ptr() as *const u8, answers.len() * std::mem::size_of::<f64>())
+        };
+        w.write_all(bytes)?;
       }
     }
     let mean = sum / self.number as f64;
@@ -81,7 +84,7 @@ impl GenerationArgs {
       w.write_all("\n]}".as_bytes())?;
     }
 
-    println!("{}\nExpected sum: {mean}", self.summary());
+    println!("{}\nExpected sum: \x1b[1m{mean}\x1b[0m", self.summary());
 
     Ok(())
   }
@@ -105,7 +108,14 @@ impl GenerationArgs {
 
   pub fn summary(&self) -> String {
     let Self { method, seed, number, .. } = *self;
-    format!("Method: {}\nRandom seed: {seed}\nPair count: {number}", format!("{method:?}").to_lowercase())
+    let red = "\x1b[32m";
+    let reset = "\x1b[0m";
+    let bold = "\x1b[1m";
+
+    format!(
+      "Method: {bold}{red}{}{reset}\nRandom seed: {seed}\nPair count: {number}",
+      format!("{method:?}").to_lowercase()
+    )
   }
 }
 
@@ -121,11 +131,21 @@ fn generate_uniform_pairs<'a>(seed: u64, number: usize) -> PairIter {
   }))
 }
 
-#[allow(unused)]
 fn generate_cluster_pairs<'a>(seed: u64, number: usize) -> PairIter {
   let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
 
-  Box::new((0..number).map(move |_| todo!()))
+  let x0r = rng.random_range(20. ..180.);
+  let x1r = rng.random_range(20. ..180.);
+  let y0r = rng.random_range(10. ..90.);
+  let y1r = rng.random_range(10. ..90.);
+
+  Box::new((0..number).map(move |_| {
+    let x0 = rng.random_range(-x0r..x0r);
+    let x1 = rng.random_range(-x1r..x1r);
+    let y0 = rng.random_range(-y0r..y0r);
+    let y1 = rng.random_range(-y1r..y1r);
+    [[x0, y0], [x1, y1]]
+  }))
 }
 
 pub fn pair_to_json([[x0, y0], [x1, y1]]: &Pair) -> String {
