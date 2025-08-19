@@ -15,7 +15,6 @@ use clap::{builder::ValueParser, CommandFactory, Parser, Subcommand};
 use json::parse_json;
 use regex::Regex;
 
-
 /// Program that generates haversine input
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -54,7 +53,7 @@ impl Args {
         let answer = std::fs::read(answer_path)?;
         let answers: Vec<f64> =
           answer.chunks_exact(std::mem::size_of::<f64>()).map(|b| f64::from_le_bytes(b.try_into().unwrap())).collect();
-        let json_val = parse_json(&json).expect("Could not parse JSON");
+        let json_val = parse_json(&json).unwrap_or_else(|e| panic!("Could not parse JSON:\n{}", e.to_string()));
 
         let json::Value::Object(map) = json_val else { panic!("expected map") };
         let pairs = map.get("pairs").expect("expected \"pairs\" entry");

@@ -64,12 +64,10 @@ impl ParseError {
     if self.children.is_empty() {
       return &self;
     }
-    let mut best_position = self.children[0].position;
-    let mut best_child = &self.children[0];
+    let mut best_child = self.children[0].best();
     for child in &self.children[1..] {
       let child_best_child = child.best();
-      if child_best_child.position > best_position {
-        best_position = child_best_child.position;
+      if child_best_child.position >= best_child.position {
         best_child = child_best_child;
       }
     }
@@ -140,11 +138,12 @@ impl<T> ParseResultExt<T> for Result<T, ParseError> {
 
 pub fn parse_json(input: &str) -> Result<Value, String> {
   let (input, json) = parse_element(input).map_err(|e| {
-    let mut e = e.relative_pos();
-    println!("{:?}", e);
-    e.msg = format!("{}\n{}", highlight_position(input, e.best().position), e.msg);
+    let e = e.relative_pos();
+    let position = e.best().position;
+    let msg = e.best().msg.clone();
 
-    e.to_string()
+    ParseError { msg: format!("{}\n{}", highlight_position(input, position), msg), children: vec![], position }
+      .to_string()
   })?;
   match input.is_empty() {
     true => Ok(json),
@@ -188,7 +187,6 @@ fn parse_array(input: &str) -> ParseResult<Value> {
   (|| {
     let (input, _) = match_char('[')(input)?;
     let (input, elements) = parse_repeat0_sep_end!(parse_element, match_char(','), match_char(']'))(input)?;
-    let (input, _) = match_char(']')(input.trim_json())?;
 
     Ok((input, Value::Array(elements)))
   })()
@@ -200,7 +198,6 @@ fn parse_string(input: &str) -> ParseResult<Value> {
     let (input, _) = match_char('"')(input)?;
     let (input, characters) = match_repeat0_end!(parse_character, match_char('"'))(input)?;
 
-    println!("{characters:?}");
     let unescaped = unescape_unicode(&characters)
       .map_err(|(msg, i)| ParseError::from(msg).with_pos(input.as_ptr() as usize + i - characters.len()))?;
 
@@ -246,8 +243,12 @@ fn parse_number(input: &str) -> ParseResult<Value> {
     Ok((
       input,
       Value::Number(match number.contains(&['.', 'e', 'E']) {
-        true => Number::F64(number.parse().map_err(|_| format!("Could not parse to f64: {number}"))?),
-        false => Number::I64(number.parse().map_err(|_| format!("Could not parse to i64: {number}"))?),
+        true => Number::F64(number.parse().map_err(|_| {
+          ParseError::from(format!("Could not parse to f64: {number}")).with_pos(input.as_ptr() as usize)
+        })?),
+        false => Number::I64(number.parse().map_err(|_| {
+          ParseError::from(format!("Could not parse to i64: {number}")).with_pos(input.as_ptr() as usize)
+        })?),
       }),
     ))
   })()
@@ -409,7 +410,7 @@ mod macros {
           input = after;
 
           if let Ok((after,)) = $end(input) {
-            return Ok((after, &input[..input.len() - after.len()]));
+            return Ok((after, &input[..input.len() - after.len() - 1]));
           }
         }
       }
@@ -422,7 +423,7 @@ mod macros {
         let mut next = input;
         loop {
           if let Ok((after, _)) = $end(next) {
-            return Ok((after, &input[..input.len() - after.len()]));
+            return Ok((after, &input[..input.len() - after.len() - 1]));
           }
 
           let (after, _) = $parser(next)?;
@@ -531,8 +532,6 @@ fn highlight_position(input: &str, pos: usize) -> String {
 
   println!("{start} {end}");
   let snippet = &input[start..end];
-
-  // Spaces before the arrow: how many characters into the snippet `pos` is
   let arrow_pos = pos.saturating_sub(start);
 
   format!("{}\n{}^", snippet, " ".repeat(arrow_pos))
@@ -543,7 +542,7 @@ mod test {
   use super::*;
 
   #[test]
-  fn test_parse_int() { 
+  fn test_parse_int() {
     assert_eq!(parse_json("null"), Ok(Value::Null));
     assert_eq!(parse_json(" true \n"), Ok(Value::Bool(true)));
     assert_eq!(parse_json("\r\t false"), Ok(Value::Bool(false)));
@@ -556,7 +555,7 @@ mod test {
     dbg!(&parse_json("-1.2e-3 "));
     dbg!(&parse_string("\"hahahh \\nehe\""));
     dbg!(&parse_string("\"Hi \\uaC40 \\uD834\\uDD1E\""));
-    dbg!(&parse_array("[ 1 , 2   ,\t -1.2e-3, \"h \\n \\bello\"]"));
+    dbg!("{}", &parse_json("[ 1 , 2   ,\t -1.2e-3, \"h \\n \\bello\" \t ]"));
     dbg!(&parse_object(r#"{"key": "value", "key_dos": -69}"#));
     println!("=====\n{}\n======", parse_json("{\"key\": true, \"thing\\uD801\": -1.2e-5  \n }").unwrap_err());
     println!("=====\n{:?}\n======", parse_json(r#" {}"#));
