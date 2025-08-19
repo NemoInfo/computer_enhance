@@ -15,6 +15,7 @@ use clap::{builder::ValueParser, CommandFactory, Parser, Subcommand};
 use json::parse_json;
 use regex::Regex;
 
+
 /// Program that generates haversine input
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
