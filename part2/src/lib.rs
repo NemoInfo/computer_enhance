@@ -1,5 +1,5 @@
 mod generate;
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 
 use compute::{reference_haversine, EARTH_RADIUS};
 use generate::{GenerationArgs, GenerationMethod};
@@ -12,7 +12,7 @@ mod json;
 *  Argument Parsing  *
 *********************/
 use clap::{builder::ValueParser, CommandFactory, Parser, Subcommand};
-use json::parse_json;
+use json::parse_json_file;
 use regex::Regex;
 
 /// Program that generates haversine input
@@ -49,25 +49,27 @@ impl Args {
         let answer_path = file.with_extension("answer");
         assert!(json_path.exists() && json_path.is_file());
         assert!(answer_path.exists() && answer_path.is_file());
-        let json = std::fs::read_to_string(json_path)?;
         let answer = std::fs::read(answer_path)?;
         let answers: Vec<f64> =
           answer.chunks_exact(std::mem::size_of::<f64>()).map(|b| f64::from_le_bytes(b.try_into().unwrap())).collect();
-        let json_val = parse_json(&json).unwrap_or_else(|e| panic!("Could not parse JSON:\n{}", e.to_string()));
+        let json_val =
+          parse_json_file(json_path).unwrap_or_else(|e| panic!("Could not parse JSON:\n{}", e.to_string()));
 
         let json::Value::Object(map) = json_val else { panic!("expected map") };
         let pairs = map.get("pairs").expect("expected \"pairs\" entry");
         let json::Value::Array(pairs) = pairs else { panic!("pairs entry should be array") };
-        for (pair, answer) in pairs.iter().zip(answers) {
+        let total = pairs.len();
+        for (i, (pair, answer)) in pairs.iter().zip(answers).enumerate() {
+          progress(total, i + 1, 20);
           let json::Value::Object(pair) = pair else { panic!("expected map") };
           let json::Value::Number(json::Number::F64(x0)) = pair.get("x0").expect("x0 entry required") else { panic!() };
           let json::Value::Number(json::Number::F64(y0)) = pair.get("y0").expect("y0 entry required") else { panic!() };
           let json::Value::Number(json::Number::F64(x1)) = pair.get("x1").expect("x1 entry required") else { panic!() };
           let json::Value::Number(json::Number::F64(y1)) = pair.get("y1").expect("y1 entry required") else { panic!() };
           let computed = reference_haversine([[*x0, *y0], [*x1, *y1]], EARTH_RADIUS);
-          println!("Expected: {answer}\nComputed: {computed}");
           assert_eq!(answer, computed);
         }
+        println!("");
 
         Ok(())
       }
@@ -110,4 +112,14 @@ pub fn dir_name_parser() -> ValueParser {
       Err("must be directory name")
     }
   })
+}
+
+pub fn progress(total: usize, i: usize, len: usize) {
+  let full = "=".repeat(i / (total / len));
+  let empty = ".".repeat(len - full.len());
+  print!("\r[{full}>{empty}] {i}/{total}");
+  std::io::stdout().flush().unwrap();
+  if i == total {
+    println!();
+  }
 }

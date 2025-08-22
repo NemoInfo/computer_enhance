@@ -6,7 +6,7 @@ use std::{
 use crate::{
   chunked,
   compute::{reference_haversine, Pair, PairIter, EARTH_RADIUS},
-  dir_name_parser, non_zero_usize_parser,
+  dir_name_parser, non_zero_usize_parser, progress,
 };
 
 use clap::{Args, ValueEnum};
@@ -60,7 +60,10 @@ impl GenerationArgs {
     };
 
     let mut sum = 0.;
+    let mut pi = 0;
     for chunk in chunked(self.generate_pairs(), self.batch_size) {
+      progress(self.number, pi, 20);
+      pi += chunk.len();
       let json: Vec<_> = chunk.iter().map(|p| pair_to_json(p)).collect();
       let answers: Vec<_> = chunk.iter().map(|&p| reference_haversine(p, EARTH_RADIUS)).collect();
       sum += answers.iter().sum::<f64>();
@@ -78,6 +81,7 @@ impl GenerationArgs {
       }
     }
     let mean = sum / self.number as f64;
+    progress(self.number, pi, 20);
 
     if let Some(w) = &mut json_writer {
       w.seek_relative(-2)?; // Overwrite trailing comma

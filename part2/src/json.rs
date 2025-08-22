@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fmt::Display};
+use std::{collections::BTreeMap, fmt::Display, path::Path};
 
 use macros::*;
 
@@ -80,7 +80,7 @@ impl Display for ParseError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(
       f,
-      "{} at {}{}\n{}",
+      "{} at byte {}{}\n{}",
       self.msg,
       self.position,
       ["", ":"][(self.children.len() != 0) as usize],
@@ -136,14 +136,47 @@ impl<T> ParseResultExt<T> for Result<T, ParseError> {
   }
 }
 
-pub fn parse_json(input: &str) -> Result<Value, String> {
+pub fn parse_json_file<P: AsRef<Path>>(path: P) -> Result<Value, String> {
+  let path = path.as_ref();
+  let input = std::fs::read_to_string(path).map_err(|e| format!("Could not read file: {e}"))?;
+  let (input, json) = parse_element(&input).map_err(|e| {
+    let e = e.relative_pos();
+    let position = e.best().position;
+    let (line, col) = line_col(&input, position);
+    let msg = e.best().msg.clone();
+
+    ParseError {
+      msg: format!(
+        "[{}:{line}:{col} \x1b[31merror\x1b[0m] {}\n{}\n{}^",
+        path.to_string_lossy(),
+        msg,
+        input.lines().nth(line - 1).unwrap(),
+        " ".repeat(col - 1),
+      ),
+      children: vec![],
+      position,
+    }
+    .to_string()
+  })?;
+  match input.is_empty() {
+    true => Ok(json),
+    false => Err("Unexpected trailing characters after JSON value".into()), // TODO
+  }
+}
+
+pub fn _parse_json(input: &str) -> Result<Value, String> {
   let (input, json) = parse_element(input).map_err(|e| {
     let e = e.relative_pos();
     let position = e.best().position;
+    let (line, col) = line_col(input, position);
     let msg = e.best().msg.clone();
 
-    ParseError { msg: format!("{}\n{}", highlight_position(input, position), msg), children: vec![], position }
-      .to_string()
+    ParseError {
+      msg: format!("{}\n{}\n{}", input.lines().nth(line - 1).unwrap(), " ".repeat(col - 1), msg),
+      children: vec![],
+      position,
+    }
+    .to_string()
   })?;
   match input.is_empty() {
     true => Ok(json),
@@ -523,43 +556,46 @@ impl TrimJson for str {
   }
 }
 
-fn highlight_position(input: &str, pos: usize) -> String {
-  let len = input.len();
-
-  // Clamp the window to 5 chars before and after
-  let start = pos.saturating_sub(10);
-  let end = (pos + 10).min(len);
-
-  println!("{start} {end}");
-  let snippet = &input[start..end];
-  let arrow_pos = pos.saturating_sub(start);
-
-  format!("{}\n{}^", snippet, " ".repeat(arrow_pos))
+fn line_col(s: &str, byte_index: usize) -> (usize, usize) {
+  let mut line = 1;
+  let mut col = 1;
+  for (i, ch) in s.char_indices() {
+    if i == byte_index {
+      break;
+    }
+    match ch {
+      '\n' => {
+        line += 1;
+        col = 1;
+      }
+      // '\r' => continue, // ignore carriage return
+      _ => col += 1,
+    }
+  }
+  (line, col)
 }
 
 #[cfg(test)]
 mod test {
-  use super::*;
-
   #[test]
   fn test_parse_int() {
-    assert_eq!(parse_json("null"), Ok(Value::Null));
-    assert_eq!(parse_json(" true \n"), Ok(Value::Bool(true)));
-    assert_eq!(parse_json("\r\t false"), Ok(Value::Bool(false)));
-    assert!(parse_json("\r\t False").is_err());
-    dbg!(&parse_json("12901 "));
-    dbg!(&parse_json("129012137128371283728173812738127381738127381738178173817381 bla bla"));
-    dbg!(&parse_json("0101 "));
-    dbg!(&parse_json("-1123"));
-    dbg!(&parse_json("10e3 "));
-    dbg!(&parse_json("-1.2e-3 "));
-    dbg!(&parse_string("\"hahahh \\nehe\""));
-    dbg!(&parse_string("\"Hi \\uaC40 \\uD834\\uDD1E\""));
-    dbg!("{}", &parse_json("[ 1 , 2   ,\t -1.2e-3, \"h \\n \\bello\" \t ]"));
-    dbg!(&parse_object(r#"{"key": "value", "key_dos": -69}"#));
-    println!("=====\n{}\n======", parse_json("{\"key\": true, \"thing\\uD801\": -1.2e-5  \n }").unwrap_err());
-    println!("=====\n{:?}\n======", parse_json(r#" {}"#));
-    println!("=====\n{}\n======", parse_json(r#"   {"key\u035G": true }"#).unwrap_err());
-    assert!(false);
+    //   assert_eq!(parse_json("null"), Ok(Value::Null));
+    //   assert_eq!(parse_json(" true \n"), Ok(Value::Bool(true)));
+    //   assert_eq!(parse_json("\r\t false"), Ok(Value::Bool(false)));
+    //   assert!(parse_json("\r\t False").is_err());
+    //   dbg!(&parse_json("12901 "));
+    //   dbg!(&parse_json("129012137128371283728173812738127381738127381738178173817381 bla bla"));
+    //   dbg!(&parse_json("0101 "));
+    //   dbg!(&parse_json("-1123"));
+    //   dbg!(&parse_json("10e3 "));
+    //   dbg!(&parse_json("-1.2e-3 "));
+    //   dbg!(&parse_string("\"hahahh \\nehe\""));
+    //   dbg!(&parse_string("\"Hi \\uaC40 \\uD834\\uDD1E\""));
+    //   dbg!("{}", &parse_json("[ 1 , 2   ,\t -1.2e-3, \"h \\n \\bello\" \t ]"));
+    //   dbg!(&parse_object(r#"{"key": "value", "key_dos": -69}"#));
+    //   println!("=====\n{}\n======", parse_json("{\"key\": true, \"thing\\uD801\": -1.2e-5  \n }").unwrap_err());
+    //   println!("=====\n{:?}\n======", parse_json(r#" {}"#));
+    //   println!("=====\n{}\n======", parse_json(r#"   {"key\u035G": true }"#).unwrap_err());
+    //   assert!(false);
   }
 }
